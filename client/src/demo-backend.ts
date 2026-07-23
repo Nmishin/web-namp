@@ -492,7 +492,7 @@ export function getStatus(): Promise<StatusResponse> {
 /** POST /api/token → rejected: there is no server to talk to Yandex. */
 export function submitToken(_token: string): Promise<TokenResponse> {
   return Promise.reject(
-    new Error('demo build — connect a Yandex account by running ya-namp locally'),
+    new Error('demo build — connect a Yandex account by running web-namp locally'),
   );
 }
 
@@ -530,12 +530,12 @@ export function setLike(_trackId: string, liked: boolean): Promise<LikeResponse>
 
 /** POST /api/playlists/create → rejected in the demo. */
 export function createPlaylist(_title: string, _trackIds?: string[]): Promise<PlaylistSummary> {
-  return Promise.reject(new Error('demo build — run ya-namp locally to create playlists'));
+  return Promise.reject(new Error('demo build — run web-namp locally to create playlists'));
 }
 
 /** POST /api/playlists/:id/add → rejected in the demo. */
 export function addToPlaylist(_id: string, _trackIds: string[]): Promise<PlaylistSummary> {
-  return Promise.reject(new Error('demo build — run ya-namp locally to edit playlists'));
+  return Promise.reject(new Error('demo build — run web-namp locally to edit playlists'));
 }
 
 /** GET /api/wave → a simulated, effectively-infinite wave from the catalog. */

@@ -18,7 +18,7 @@ export interface Track {
   bitrateKbps: number | null;
 }
 
-export type ServerMode = 'demo' | 'yandex';
+export type ServerMode = 'demo' | 'yandex' | 'openvk';
 
 /** GET /api/status → 200 */
 export interface StatusResponse {

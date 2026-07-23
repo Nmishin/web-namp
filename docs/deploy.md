@@ -1,6 +1,6 @@
-# Deploying ya-namp on Synology (Container Manager / Podman / Docker)
+# Deploying web-namp on Synology (Container Manager / Podman / Docker)
 
-ya-namp ships as a small container image. The runtime is just `node:22-alpine`
+web-namp ships as a small container image. The runtime is just `node:22-alpine`
 plus one bundled server file (`server/dist/index.mjs`, express baked in) and the
 built SPA (`client/dist/`) — **no `node_modules`**. It listens on **port 8058**
 and runs fine as **root** (`0:0`), which is how Synology DSM starts containers.
@@ -10,7 +10,7 @@ Yandex OAuth token to stream your real account.
 
 > In this repo `docker` is aliased to `podman`. Every command below works with
 > either — swap `podman` ↔ `docker` freely. Images/tars are tagged
-> **`ya-namp:latest`** (no `localhost/` prefix — see the note at the bottom).
+> **`web-namp:latest`** (no `localhost/` prefix — see the note at the bottom).
 
 ---
 
@@ -24,30 +24,30 @@ npm run image:build
 
 This runs [`scripts/build-image.sh`](../scripts/build-image.sh), which:
 
-1. `podman build -t ya-namp:latest -f Dockerfile .`
+1. `podman build -t web-namp:latest -f Dockerfile .`
 2. `podman save`s a `docker-archive` and **strips podman's `localhost/` prefix**
-   so the archive's `RepoTags` is exactly `["ya-namp:latest"]`.
-3. Writes **`dist/ya-namp.tar`** (~157 MB) ready to import on the NAS.
+   so the archive's `RepoTags` is exactly `["web-namp:latest"]`.
+3. Writes **`dist/web-namp.tar`** (~157 MB) ready to import on the NAS.
 
 Overrides via env vars:
 
 ```bash
 SAVE=0 npm run image:build                                   # build only, no tar
-IMAGE=ya-namp:1.0 OUTPUT=dist/ya-namp-1.0.tar npm run image:build
+IMAGE=web-namp:1.0 OUTPUT=dist/web-namp-1.0.tar npm run image:build
 ENGINE=docker npm run image:build                            # force docker
 ```
 
-(You can also build by hand: `podman build -t ya-namp:latest -f Dockerfile .`)
+(You can also build by hand: `podman build -t web-namp:latest -f Dockerfile .`)
 
 ---
 
 ## 2a. Deploy via the DSM GUI (Container Manager)
 
 1. Copy the tar to the NAS, e.g.
-   `scp dist/ya-namp.tar admin@synology:/volume1/docker/`
-2. **Container Manager → Image → Add → Add From File** → pick `ya-namp.tar`.
-   It imports as **`ya-namp:latest`**.
-3. **Image → select ya-namp → Run**:
+   `scp dist/web-namp.tar admin@synology:/volume1/docker/`
+2. **Container Manager → Image → Add → Add From File** → pick `web-namp.tar`.
+   It imports as **`web-namp:latest`**.
+3. **Image → select web-namp → Run**:
    - **Port settings:** Local port **8058** → Container port **8058** (TCP).
    - **Environment** (optional real account): add `YANDEX_TOKEN` = your token.
      (`NODE_ENV=production` and `PORT=8058` are already baked into the image.)
@@ -59,27 +59,27 @@ ENGINE=docker npm run image:build                            # force docker
 ## 2b. Deploy via CLI (podman/docker on the NAS)
 
 ```bash
-docker load -i /volume1/docker/ya-namp.tar        # imports ya-namp:latest
+docker load -i /volume1/docker/web-namp.tar        # imports web-namp:latest
 
 # demo mode
-docker run -d --name ya-namp \
+docker run -d --name web-namp \
   -p 8058:8058 \
   --restart unless-stopped \
-  ya-namp:latest
+  web-namp:latest
 
 # real account — either pass the token…
-docker run -d --name ya-namp \
+docker run -d --name web-namp \
   -p 8058:8058 \
   -e YANDEX_TOKEN=YOUR_TOKEN_HERE \
   --restart unless-stopped \
-  ya-namp:latest
+  web-namp:latest
 
 # …or mount a .env file
-docker run -d --name ya-namp \
+docker run -d --name web-namp \
   -p 8058:8058 \
-  -v /volume1/docker/ya-namp/.env:/app/.env:ro \
+  -v /volume1/docker/web-namp/.env:/app/.env:ro \
   --restart unless-stopped \
-  ya-namp:latest
+  web-namp:latest
 ```
 
 ## 2c. Deploy as a Container Manager "Project" (compose)
@@ -91,9 +91,9 @@ the `build:` block):
 
 ```yaml
 services:
-  ya-namp:
-    image: ya-namp:latest
-    container_name: ya-namp
+  web-namp:
+    image: web-namp:latest
+    container_name: web-namp
     user: "0:0"
     ports:
       - "8058:8058"
@@ -148,13 +148,13 @@ it is never logged. An invalid/expired token just falls back to demo mode.
 - **Health check:** `curl http://<nas-ip>:8058/api/status` →
   `{"mode":"demo",…}` or `{"mode":"yandex",…}`.
 - **The `localhost/` prefix.** Podman stores unqualified images as
-  `localhost/ya-namp:latest`; the build script already strips that from the
-  **tar**, and Docker/DSM import it cleanly as `ya-namp:latest`. If a tool ever
-  still shows `localhost/ya-namp:latest` after import, retag it:
+  `localhost/web-namp:latest`; the build script already strips that from the
+  **tar**, and Docker/DSM import it cleanly as `web-namp:latest`. If a tool ever
+  still shows `localhost/web-namp:latest` after import, retag it:
 
   ```bash
-  docker tag localhost/ya-namp:latest ya-namp:latest
-  docker rmi localhost/ya-namp:latest
+  docker tag localhost/web-namp:latest web-namp:latest
+  docker rmi localhost/web-namp:latest
   ```
 
 - **No Node install needed on the NAS beyond the container.** If you'd rather not

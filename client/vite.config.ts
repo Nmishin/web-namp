@@ -1,9 +1,9 @@
 import { defineConfig } from 'vite';
 
 // The static GitHub Pages build (`npm run build:pages` → VITE_STATIC=1) is
-// served from https://<user>.github.io/ya-namp/, so assets must resolve under
+// served from https://<user>.github.io/web-namp/, so assets must resolve under
 // that sub-path. A normal build/dev is served from the root, so base stays '/'.
-const base = process.env.VITE_STATIC ? '/ya-namp/' : '/';
+const base = process.env.VITE_STATIC ? '/web-namp/' : '/';
 
 // NOTE: `@shared` is a *type-only* alias (see tsconfig.json "paths"). Every
 // import from it must be `import type { ... }`, which is fully erased at

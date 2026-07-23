@@ -1,5 +1,5 @@
 /**
- * ya-namp server: demo mode (procedural in-memory WAVs) by default,
+ * web-namp server: demo mode (procedural in-memory WAVs) by default,
  * Yandex Music proxy mode once a valid OAuth token is posted to /api/token.
  * API contract: /shared/types.ts
  */
@@ -50,12 +50,40 @@ import {
   sendWaveFeedback,
   validateToken,
 } from './yandex';
+import {
+  UpstreamError as OpenVkUpstreamError,
+  directLogin as openvkDirectLogin,
+  errorMessage as openvkErrorMessage,
+  fetchLikedIds as openvkFetchLikedIds,
+  fetchPlaylists as openvkFetchPlaylists,
+  fetchPlaylistTracks as openvkFetchPlaylistTracks,
+  likeTrack as openvkLikeTrack,
+  normaliseInstanceUrl,
+  resolveStreamUrl as openvkResolveStreamUrl,
+  searchTracks as openvkSearchTracks,
+} from './openvk';
 
 const app = express();
 app.disable('x-powered-by');
 
 /** In-memory session. null → demo mode; set → yandex mode. */
 let session: { token: string; login: string; uid: number } | null = null;
+
+/** In-memory OpenVK session. Null → not connected. */
+let sessionOpenVK: {
+  token: string;
+  login: string;
+  uid: number;
+  instanceUrl: string;
+} | null = null;
+
+/** Cached .env credentials for runtime mode switching. */
+let cachedYandexToken: string | null = null;
+let cachedOpenVkCreds: {
+  username?: string;
+  password?: string;
+  instanceUrl: string;
+} | null = null;
 
 // ---------------------------------------------------------------------------
 // CORS for all /api routes (permissive: the vite dev client may call us
@@ -82,10 +110,57 @@ app.use('/api', express.json());
 // ---------------------------------------------------------------------------
 
 app.get('/api/status', (_req: Request, res: Response) => {
-  const body: StatusResponse = session
-    ? { mode: 'yandex', account: { login: session.login } }
-    : { mode: 'demo', account: null };
+  let body: StatusResponse;
+  if (sessionOpenVK) {
+    body = { mode: 'openvk', account: { login: sessionOpenVK.login } };
+  } else if (session) {
+    body = { mode: 'yandex', account: { login: session.login } };
+  } else {
+    body = { mode: 'demo', account: null };
+  }
   res.json(body);
+});
+
+app.post('/api/mode', async (req: Request, res: Response) => {
+  const body = req.body as Partial<{ mode: string }> | undefined;
+  const mode = typeof body?.mode === 'string' ? body.mode : '';
+  if (mode !== 'demo' && mode !== 'yandex' && mode !== 'openvk') {
+    res.status(400).json({ error: 'Invalid mode. Use: demo, yandex, openvk' } satisfies ApiError);
+    return;
+  }
+  if (mode === 'demo') {
+    session = null; sessionOpenVK = null;
+    res.json({ mode: 'demo', account: null } satisfies StatusResponse);
+    return;
+  }
+  if (mode === 'yandex') {
+    if (!cachedYandexToken) { res.status(409).json({ error: 'No Yandex token in .env' } satisfies ApiError); return; }
+    try {
+      const account = await validateToken(cachedYandexToken);
+      if (!account) { res.status(401).json({ error: 'Stored Yandex token invalid' } satisfies ApiError); return; }
+      session = { token: cachedYandexToken, login: account.login, uid: account.uid };
+      sessionOpenVK = null;
+      res.json({ mode: 'yandex', account: { login: account.login } } satisfies StatusResponse);
+    } catch (err) { respondError(res, err, 'Yandex mode switch failed'); }
+    return;
+  }
+  if (mode === 'openvk') {
+    if (!cachedOpenVkCreds) { res.status(409).json({ error: 'No OpenVK config in .env' } satisfies ApiError); return; }
+    const c = cachedOpenVkCreds;
+    try {
+      const instanceUrl = normaliseInstanceUrl(c.instanceUrl);
+      if (!c.username || !c.password) {
+        res.status(401).json({ error: 'OPENVK_USERNAME and OPENVK_PASSWORD required' } satisfies ApiError);
+        return;
+      }
+      const result = await openvkDirectLogin(c.username, c.password, instanceUrl);
+      if (!result) { res.status(401).json({ error: 'OpenVK auth failed' } satisfies ApiError); return; }
+      sessionOpenVK = { token: result.token, login: result.login, uid: result.uid, instanceUrl };
+      session = null;
+      res.json({ mode: 'openvk', account: { login: result.login } } satisfies StatusResponse);
+    } catch (err) { respondError(res, err, 'OpenVK mode switch failed'); }
+    return;
+  }
 });
 
 app.post('/api/token', async (req: Request, res: Response) => {
@@ -102,6 +177,7 @@ app.post('/api/token', async (req: Request, res: Response) => {
       return;
     }
     session = { token, login: account.login, uid: account.uid };
+    sessionOpenVK = null;
     console.log(`[auth] yandex mode enabled for account "${account.login}"`);
     res.json({ ok: true, account: { login: account.login } } satisfies TokenResponse);
   } catch (err) {
@@ -112,12 +188,19 @@ app.post('/api/token', async (req: Request, res: Response) => {
 app.get('/api/search', async (req: Request, res: Response) => {
   const rawQ = req.query.q;
   const q = typeof rawQ === 'string' ? rawQ : Array.isArray(rawQ) && typeof rawQ[0] === 'string' ? rawQ[0] : '';
+  if (sessionOpenVK) {
+    if (!q.trim()) { res.json({ tracks: [] } satisfies SearchResponse); return; }
+    try {
+      const tracks = await openvkSearchTracks(sessionOpenVK.token, sessionOpenVK.instanceUrl, q);
+      res.json({ tracks } satisfies SearchResponse);
+    } catch (err) { respondError(res, err, 'Search failed'); }
+    return;
+  }
   if (!session) {
     res.json({ tracks: searchDemoTracks(q) } satisfies SearchResponse);
     return;
   }
   if (!q.trim()) {
-    // Contract: yandex mode returns [] for an empty query.
     res.json({ tracks: [] } satisfies SearchResponse);
     return;
   }
@@ -131,15 +214,10 @@ app.get('/api/search', async (req: Request, res: Response) => {
 
 app.get('/api/bitrate/:id', async (req: Request, res: Response) => {
   const id = req.params.id as string;
+  if (sessionOpenVK) { res.json({ kbps: null } satisfies BitrateResponse); return; }
   const demo = getDemoEntry(id);
-  if (demo) {
-    res.json({ kbps: demo.track.bitrateKbps } satisfies BitrateResponse);
-    return;
-  }
-  if (!session) {
-    res.json({ kbps: null } satisfies BitrateResponse);
-    return;
-  }
+  if (demo) { res.json({ kbps: demo.track.bitrateKbps } satisfies BitrateResponse); return; }
+  if (!session) { res.json({ kbps: null } satisfies BitrateResponse); return; }
   const kbps = await getBitrate(session.token, id);
   res.json({ kbps } satisfies BitrateResponse);
 });
@@ -147,6 +225,10 @@ app.get('/api/bitrate/:id', async (req: Request, res: Response) => {
 app.get('/api/wave', async (req: Request, res: Response) => {
   const rawAfter = req.query.after;
   const after = typeof rawAfter === 'string' && rawAfter ? rawAfter : undefined;
+  if (sessionOpenVK) {
+    res.status(501).json({ error: 'My Wave is not available in OpenVK mode' } satisfies ApiError);
+    return;
+  }
   if (!session) {
     res.json({ tracks: simulatedWave(after), sessionId: 'demo-wave' } satisfies WaveResponse);
     return;
@@ -177,12 +259,16 @@ app.post('/api/wave/feedback', async (req: Request, res: Response) => {
 
 app.get('/api/stream/:id', async (req: Request, res: Response) => {
   const id = req.params.id as string;
-
-  // Demo tracks stream from memory regardless of mode, so a playlist built
-  // in demo mode keeps playing after a token is set.
   const demo = getDemoEntry(id);
-  if (demo) {
-    serveBufferWithRange(req, res, demo.wav, 'audio/wav');
+  if (demo) { serveBufferWithRange(req, res, demo.wav, 'audio/wav'); return; }
+  if (sessionOpenVK) {
+    try {
+      const url = await openvkResolveStreamUrl(sessionOpenVK.token, sessionOpenVK.instanceUrl, id);
+      await proxyStream(req, res, url);
+    } catch (err) {
+      if (res.headersSent) { res.destroy(); return; }
+      respondError(res, err, 'Stream failed');
+    }
     return;
   }
   if (!session) {
@@ -204,6 +290,13 @@ app.get('/api/stream/:id', async (req: Request, res: Response) => {
 });
 
 app.get('/api/playlists', async (_req: Request, res: Response) => {
+  if (sessionOpenVK) {
+    try {
+      const playlists = await openvkFetchPlaylists(sessionOpenVK.token, sessionOpenVK.uid, sessionOpenVK.instanceUrl);
+      res.json({ playlists } satisfies PlaylistsResponse);
+    } catch (err) { respondError(res, err, 'Playlists failed'); }
+    return;
+  }
   if (!session) {
     res.json({ playlists: demoPlaylists() } satisfies PlaylistsResponse);
     return;
@@ -218,6 +311,13 @@ app.get('/api/playlists', async (_req: Request, res: Response) => {
 
 app.get('/api/playlists/:id/tracks', async (req: Request, res: Response) => {
   const id = req.params.id as string;
+  if (sessionOpenVK) {
+    try {
+      const tracks = await openvkFetchPlaylistTracks(sessionOpenVK.token, sessionOpenVK.uid, id, sessionOpenVK.instanceUrl);
+      res.json({ tracks } satisfies PlaylistTracksResponse);
+    } catch (err) { respondError(res, err, 'Playlist tracks failed'); }
+    return;
+  }
   if (!session) {
     const tracks = demoPlaylistTracks(id);
     if (!tracks) {
@@ -236,6 +336,13 @@ app.get('/api/playlists/:id/tracks', async (req: Request, res: Response) => {
 });
 
 app.get('/api/liked-ids', async (_req: Request, res: Response) => {
+  if (sessionOpenVK) {
+    try {
+      const ids = await openvkFetchLikedIds(sessionOpenVK.token, sessionOpenVK.uid, sessionOpenVK.instanceUrl);
+      res.json({ ids } satisfies LikedIdsResponse);
+    } catch (err) { respondError(res, err, 'Liked ids failed'); }
+    return;
+  }
   if (!session) {
     res.json({ ids: [] } satisfies LikedIdsResponse);
     return;
@@ -252,8 +359,12 @@ app.post('/api/like', async (req: Request, res: Response) => {
   const body = req.body as Partial<LikeRequest> | undefined;
   const trackId = typeof body?.trackId === 'string' ? body.trackId : '';
   const liked = body?.liked;
-  if (!trackId || typeof liked !== 'boolean') {
-    res.status(400).json({ error: 'Invalid like payload' } satisfies ApiError);
+  if (!trackId || typeof liked !== 'boolean') { res.status(400).json({ error: 'Invalid like payload' } satisfies ApiError); return; }
+  if (sessionOpenVK) {
+    try {
+      await openvkLikeTrack(sessionOpenVK.token, sessionOpenVK.uid, trackId, liked, sessionOpenVK.instanceUrl);
+      res.json({ liked } satisfies LikeResponse);
+    } catch (err) { respondError(res, err, 'Like failed'); }
     return;
   }
   if (!session) {
@@ -270,6 +381,7 @@ app.post('/api/like', async (req: Request, res: Response) => {
 });
 
 app.post('/api/playlists/create', async (req: Request, res: Response) => {
+  if (sessionOpenVK) { res.status(501).json({ error: 'Creating playlists not supported for OpenVK' } satisfies ApiError); return; }
   const body = req.body as Partial<CreatePlaylistRequest> | undefined;
   const title = typeof body?.title === 'string' ? body.title.trim() : '';
   const trackIds = Array.isArray(body?.trackIds)
@@ -294,6 +406,7 @@ app.post('/api/playlists/create', async (req: Request, res: Response) => {
 });
 
 app.post('/api/playlists/:id/add', async (req: Request, res: Response) => {
+  if (sessionOpenVK) { res.status(501).json({ error: 'Adding to playlists not supported for OpenVK' } satisfies ApiError); return; }
   const id = req.params.id as string;
   const body = req.body as Partial<{ trackIds: unknown }> | undefined;
   const trackIds = Array.isArray(body?.trackIds)
@@ -349,7 +462,7 @@ app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     return;
   }
   const status =
-    err instanceof UpstreamError
+    err instanceof UpstreamError || err instanceof OpenVkUpstreamError
       ? err.status
       : typeof (err as { status?: unknown }).status === 'number'
         ? ((err as { status: number }).status)
@@ -506,20 +619,67 @@ function readEnvToken(): string | null {
   return null;
 }
 
-async function bootstrapSession(): Promise<void> {
-  const token = readEnvToken();
-  if (!token) return;
-  try {
-    const account = await validateToken(token);
-    if (account) {
-      session = { token, login: account.login, uid: account.uid };
-      console.log(`[auth] .env token accepted — yandex mode for "${account.login}"`);
-    } else {
-      console.warn('[auth] .env YANDEX_TOKEN was rejected (expired?) — staying in demo mode');
+function readEnvOpenVK(): {
+  username?: string;
+  password?: string;
+  instanceUrl?: string;
+} | null {
+  const username = process.env.OPENVK_USERNAME?.trim();
+  const password = process.env.OPENVK_PASSWORD?.trim();
+  const instanceUrl = process.env.OPENVK_INSTANCE?.trim();
+  if (!instanceUrl) {
+    const envPath = path.resolve(__dirname, '../../.env');
+    let text: string;
+    try { text = fs.readFileSync(envPath, 'utf8'); } catch { return null; }
+    let envUser = username || null;
+    let envPass = password || null;
+    let envUrl = instanceUrl || null;
+    for (const line of text.split('\n')) {
+      if (!envUser) { const m = /^\s*OPENVK_USERNAME\s*=\s*(.*)\s*$/.exec(line); if (m) envUser = (m[1] as string).trim(); }
+      if (!envPass) { const m = /^\s*OPENVK_PASSWORD\s*=\s*(.*)\s*$/.exec(line); if (m) envPass = (m[1] as string).trim(); }
+      if (!envUrl) { const m = /^\s*OPENVK_INSTANCE\s*=\s*(.*)\s*$/.exec(line); if (m) envUrl = (m[1] as string).trim().replace(/^["']|["']$/g, '') || null; }
     }
-  } catch (err) {
-    console.warn(`[auth] could not validate .env token: ${errorMessage(err)} — staying in demo mode`);
+    if (!envUrl) return null;
+    return { username: envUser || undefined, password: envPass || undefined, instanceUrl: envUrl };
   }
+  return { username: username || undefined, password: password || undefined, instanceUrl };
+}
+
+async function bootstrapSession(): Promise<void> {
+  cachedYandexToken = readEnvToken();
+  const envOvk = readEnvOpenVK();
+  cachedOpenVkCreds = envOvk?.instanceUrl
+    ? { username: envOvk.username, password: envOvk.password, instanceUrl: envOvk.instanceUrl }
+    : null;
+
+  if (cachedYandexToken) {
+    try {
+      const account = await validateToken(cachedYandexToken);
+      if (account) { session = { token: cachedYandexToken, login: account.login, uid: account.uid }; console.log(`[auth] Yandex mode for "${account.login}"`); return; }
+      console.warn('[auth] YANDEX_TOKEN rejected (expired?)');
+    } catch (err) { console.warn(`[auth] Yandex: ${errorMessage(err)}`); }
+  }
+
+  if (cachedOpenVkCreds) {
+    const instanceUrl = normaliseInstanceUrl(cachedOpenVkCreds.instanceUrl);
+    const c = cachedOpenVkCreds;
+
+    if (c.username && c.password) {
+      try {
+        const result = await openvkDirectLogin(c.username, c.password, instanceUrl);
+        if (result) {
+          console.log(`[auth] OpenVK direct login ok for "${result.login}"`);
+          sessionOpenVK = { token: result.token, login: result.login, uid: result.uid, instanceUrl };
+          return;
+        }
+        console.warn('[auth] OpenVK direct login rejected');
+      } catch (err) { console.warn(`[auth] OpenVK direct login: ${openvkErrorMessage(err)}`); }
+    } else {
+      console.warn('[auth] OpenVK: OPENVK_USERNAME + OPENVK_PASSWORD required');
+    }
+  }
+
+  console.log('[auth] no valid tokens — demo mode');
 }
 
 // ---------------------------------------------------------------------------
@@ -528,7 +688,10 @@ async function bootstrapSession(): Promise<void> {
 const port = Number(process.env.PORT) || 8058;
 void bootstrapSession().finally(() => {
   app.listen(port, () => {
-    const mode = session ? `yandex (${session.login})` : 'demo';
-    console.log(`[ya-namp] server listening on http://localhost:${port} (mode: ${mode})`);
+    let mode: string;
+    if (sessionOpenVK) mode = `openvk (${sessionOpenVK.login})`;
+    else if (session) mode = `yandex (${session.login})`;
+    else mode = 'demo';
+    console.log(`[web-namp] server listening on http://localhost:${port} (mode: ${mode})`);
   });
 });

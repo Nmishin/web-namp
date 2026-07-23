@@ -1,29 +1,29 @@
 #!/usr/bin/env bash
 # ---------------------------------------------------------------------------
-# Build the ya-namp container image and (optionally) save a Synology-importable
+# Build the web-namp container image and (optionally) save a Synology-importable
 # docker-archive tar into dist/.
 #
 # `docker` is aliased to `podman` in this environment, so we default to podman.
 #
 # Env overrides:
 #   ENGINE    container engine           (default: podman)
-#   IMAGE     image ref to build/tag     (default: ya-namp:latest)
-#   OUTPUT    tar path for `save`        (default: dist/ya-namp.tar)
+#   IMAGE     image ref to build/tag     (default: web-namp:latest)
+#   OUTPUT    tar path for `save`        (default: dist/web-namp.tar)
 #   SAVE      1 = also write the tar, 0 = build only   (default: 1)
 #   PLATFORM  target arch                (default: linux/amd64 — Synology DSM is
 #             x86_64; set linux/arm64 for ARM NAS, or empty for the host arch)
 #
 # Examples:
-#   ./scripts/build-image.sh                       # amd64 build + dist/ya-namp.tar
+#   ./scripts/build-image.sh                       # amd64 build + dist/web-namp.tar
 #   PLATFORM=linux/arm64 ./scripts/build-image.sh  # for an ARM NAS
 #   SAVE=0 ./scripts/build-image.sh                # build only
-#   IMAGE=ya-namp:1.0 OUTPUT=dist/ya-namp-1.0.tar ./scripts/build-image.sh
+#   IMAGE=web-namp:1.0 OUTPUT=dist/web-namp-1.0.tar ./scripts/build-image.sh
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
 ENGINE="${ENGINE:-podman}"
-IMAGE="${IMAGE:-ya-namp:latest}"
-OUTPUT="${OUTPUT:-dist/ya-namp.tar}"
+IMAGE="${IMAGE:-web-namp:latest}"
+OUTPUT="${OUTPUT:-dist/web-namp.tar}"
 SAVE="${SAVE:-1}"
 # Synology DSM runs on x86_64, so default the archive to amd64 even when built
 # on an arm64 host (cross-built via emulation). Set PLATFORM= (empty) for host arch.
@@ -53,7 +53,7 @@ if [ "$SAVE" != "1" ]; then
 fi
 
 mkdir -p "$(dirname "$OUTPUT")"
-RAW="$(mktemp -t ya-namp-raw.XXXXXX).tar"
+RAW="$(mktemp -t web-namp-raw.XXXXXX).tar"
 trap 'rm -f "$RAW"' EXIT
 
 echo "==> Saving docker-archive"

@@ -379,7 +379,7 @@ export async function sendWaveFeedback(
     type: event,
     timestamp: new Date().toISOString(),
     trackId,
-    from: 'ya-namp',
+    from: 'web-namp',
   };
   if (totalPlayedSeconds !== undefined) payload['totalPlayedSeconds'] = totalPlayedSeconds;
   const body = JSON.stringify(payload);

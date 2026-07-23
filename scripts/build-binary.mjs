@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 /**
- * Build ya-namp as a single self-contained executable using Node 22
+ * Build web-namp as a single self-contained executable using Node 22
  * Single Executable Applications (SEA).
  *
  * WHAT THIS PRODUCES
- *   dist/ya-namp/
- *     server/dist/ya-namp[.exe]   ← the binary (node runtime + bundled server)
+ *   dist/web-namp/
+ *     server/dist/web-namp[.exe]   ← the binary (node runtime + bundled server)
  *     client/dist/…               ← the SPA, shipped ALONGSIDE the binary
  *
  * WHY THE ALONGSIDE LAYOUT
  *   The server resolves its assets at  path.resolve(__dirname,'../../client/dist').
  *   Inside a Node SEA, __dirname === the directory holding the executable
- *   (empirically verified), so a binary at  server/dist/ya-namp  looks for
+ *   (empirically verified), so a binary at  server/dist/web-namp  looks for
  *   client/dist at  server/dist/../../client/dist === <pkg>/client/dist.
  *   Mirroring the repo layout therefore makes the server find and serve the SPA
  *   with ZERO edits to server/src. The token is supplied via the YANDEX_TOKEN
@@ -41,8 +41,8 @@ const isMac = process.platform === 'darwin';
 const SENTINEL = 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2';
 
 const BUILD = path.join(ROOT, 'build', 'sea');
-const OUT = path.join(ROOT, 'dist', 'ya-namp');
-const BIN = path.join(OUT, 'server', 'dist', isWin ? 'ya-namp.exe' : 'ya-namp');
+const OUT = path.join(ROOT, 'dist', 'web-namp');
+const BIN = path.join(OUT, 'server', 'dist', isWin ? 'web-namp.exe' : 'web-namp');
 
 function run(cmd, args, opts = {}) {
   console.log(`  $ ${cmd} ${args.join(' ')}`);
@@ -139,17 +139,17 @@ const size = (fs.statSync(BIN).size / (1024 * 1024)).toFixed(0);
 const rel = path.relative(ROOT, BIN);
 console.log(`\n==> Done. ${rel} (${size} MB)`);
 console.log(`
-Package layout (ship the whole dist/ya-namp/ folder):
-  dist/ya-namp/
+Package layout (ship the whole dist/web-namp/ folder):
+  dist/web-namp/
     server/dist/${path.basename(BIN)}
     client/dist/…
 
 Run it (demo mode, works from any cwd):
-  ${isWin ? 'dist\\ya-namp\\server\\dist\\ya-namp.exe' : './dist/ya-namp/server/dist/ya-namp'}
+  ${isWin ? 'dist\\web-namp\\server\\dist\\web-namp.exe' : './dist/web-namp/server/dist/web-namp'}
 
 Real Yandex account:
-  ${isWin ? 'set YANDEX_TOKEN=... &&' : 'YANDEX_TOKEN=...'} ${isWin ? 'dist\\ya-namp\\server\\dist\\ya-namp.exe' : './dist/ya-namp/server/dist/ya-namp'}
-  (or drop a .env with YANDEX_TOKEN=... at dist/ya-namp/.env)
+  ${isWin ? 'set YANDEX_TOKEN=... &&' : 'YANDEX_TOKEN=...'} ${isWin ? 'dist\\web-namp\\server\\dist\\web-namp.exe' : './dist/web-namp/server/dist/web-namp'}
+  (or drop a .env with YANDEX_TOKEN=... at dist/web-namp/.env)
 
 Then open http://localhost:8058  (override with PORT=...).
 

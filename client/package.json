@@ -1,5 +1,5 @@
 {
-  "name": "@yanamp/client",
+  "name": "@webnamp/client",
   "version": "0.1.1",
   "private": true,
   "type": "module",

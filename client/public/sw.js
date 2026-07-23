@@ -1,8 +1,8 @@
-/* ya-namp service worker — vanilla, no build step.
-   Base-agnostic: the SW lives at the app's base root (e.g. "/" or "/ya-namp/"),
+/* web-namp service worker — vanilla, no build step.
+   Base-agnostic: the SW lives at the app's base root (e.g. "/" or "/web-namp/"),
    so its own directory doubles as the start page / offline navigation fallback. */
 
-const CACHE = 'ya-namp-v1';
+const CACHE = 'web-namp-v1';
 
 // Directory this SW is served from == the app base == the start page.
 const START_URL = new URL('.', self.location).pathname;
@@ -16,7 +16,7 @@ self.addEventListener('install', (event) => {
       .open(CACHE)
       .then((cache) => cache.add(START_URL))
       .catch((err) => {
-        console.warn('[ya-namp][sw] precache of start page failed:', err);
+        console.warn('[web-namp][sw] precache of start page failed:', err);
       }),
   );
 });
@@ -57,7 +57,7 @@ self.addEventListener('fetch', (event) => {
           cache.put(request, fresh.clone());
           return fresh;
         } catch (err) {
-          console.warn('[ya-namp][sw] navigation offline, falling back to cache:', err);
+          console.warn('[web-namp][sw] navigation offline, falling back to cache:', err);
           const cached = await caches.match(request);
           if (cached) return cached;
           const start = await caches.match(START_URL);
@@ -83,7 +83,7 @@ self.addEventListener('fetch', (event) => {
         }
         return fresh;
       } catch (err) {
-        console.warn('[ya-namp][sw] asset fetch failed:', err);
+        console.warn('[web-namp][sw] asset fetch failed:', err);
         return Response.error();
       }
     })(),

@@ -1,6 +1,6 @@
-# Single-binary ya-namp
+# Single-binary web-namp
 
-Ship ya-namp as **one self-contained executable** — the server plus the built
+Ship web-namp as **one self-contained executable** — the server plus the built
 SPA — so it can be dropped onto a NAS or host with **no Node install and no
 `node_modules`**. Two viable runtimes are covered:
 
@@ -69,35 +69,35 @@ What it does:
    > server compute `__dirname` = the binary's directory. *(verified: without
    > this the binary crashes with `ERR_INVALID_ARG_TYPE`; with it, it boots.)*
 3. Generates the SEA blob: `node --experimental-sea-config sea-config.json`.
-4. Copies the current `node` binary to `dist/ya-namp/server/dist/ya-namp` and
+4. Copies the current `node` binary to `dist/web-namp/server/dist/web-namp` and
    injects the blob with **postject** (sentinel fuse
    `NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2`).
    - **macOS:** strips the signature, injects into a `NODE_SEA` Mach-O segment,
      then ad-hoc re-signs (`codesign --sign -`). *(verified: skipping the
      re-sign makes macOS SIGKILL the binary — exit 137.)*
    - **Linux/Windows:** plain postject inject (no codesign step).
-5. Copies `client/dist` to `dist/ya-namp/client/dist`.
+5. Copies `client/dist` to `dist/web-namp/client/dist`.
 
 ### Output & how to run
 
 ```
-dist/ya-namp/
-  server/dist/ya-namp        ← the executable (node runtime + bundled server)
+dist/web-namp/
+  server/dist/web-namp        ← the executable (node runtime + bundled server)
   client/dist/…              ← the SPA, alongside
 ```
 
 `__dirname` inside the SEA is `…/server/dist`, so
 `path.resolve(__dirname,'../../client/dist')` → `…/client/dist`. The server finds
-it. **Ship the whole `dist/ya-namp/` folder.**
+it. **Ship the whole `dist/web-namp/` folder.**
 
 ```bash
-./dist/ya-namp/server/dist/ya-namp                 # demo mode, any cwd
-YANDEX_TOKEN=... ./dist/ya-namp/server/dist/ya-namp # real account
-PORT=9000 ./dist/ya-namp/server/dist/ya-namp        # relocate the port
+./dist/web-namp/server/dist/web-namp                 # demo mode, any cwd
+YANDEX_TOKEN=... ./dist/web-namp/server/dist/web-namp # real account
+PORT=9000 ./dist/web-namp/server/dist/web-namp        # relocate the port
 # open http://localhost:8058
 ```
 
-Optionally drop a `.env` (`YANDEX_TOKEN=...`) at `dist/ya-namp/.env`.
+Optionally drop a `.env` (`YANDEX_TOKEN=...`) at `dist/web-namp/.env`.
 
 ### Limitations
 
@@ -118,12 +118,12 @@ the already-bundled ESM server (or straight from TS):
 
 ```bash
 # current platform, single file:
-bun build server/dist/index.mjs --compile --outfile ya-namp
+bun build server/dist/index.mjs --compile --outfile web-namp
 
 # cross-compile (examples):
-bun build server/dist/index.mjs --compile --target=bun-linux-x64   --outfile ya-namp-linux-x64
-bun build server/dist/index.mjs --compile --target=bun-linux-arm64 --outfile ya-namp-linux-arm64
-bun build server/dist/index.mjs --compile --target=bun-windows-x64 --outfile ya-namp.exe
+bun build server/dist/index.mjs --compile --target=bun-linux-x64   --outfile web-namp-linux-x64
+bun build server/dist/index.mjs --compile --target=bun-linux-arm64 --outfile web-namp-linux-arm64
+bun build server/dist/index.mjs --compile --target=bun-windows-x64 --outfile web-namp.exe
 ```
 
 > **Verified caveat:** with the **unmodified** server, a Bun-compiled binary

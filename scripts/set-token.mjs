@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Writes your Yandex Music OAuth token to .env so the ya-namp server boots
+ * Writes your Yandex Music OAuth token to .env so the web-namp server boots
  * straight into your real account.
  *
  * The token is read from stdin (or argv) on YOUR machine and written to a

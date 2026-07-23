@@ -1,8 +1,8 @@
-# ya-namp
+# web-namp
 
 A **Yandex Music** player wearing a classic **Winamp** skin, on the web.
 
-### ▶︎ [Live demo → **lifeart.github.io/ya-namp**](https://lifeart.github.io/ya-namp/)
+### ▶︎ [Live demo → **lifeart.github.io/web-namp**](https://lifeart.github.io/web-namp/)
 
 The live demo runs **entirely in your browser** — six procedurally-synthesized
 tracks with a real 10-band equalizer, "Моя волна" AI radio, playlists and search,
@@ -10,9 +10,9 @@ no server and no account. Clone and run locally to connect your own Yandex Music
 account for the real catalog.
 
 <p align="center">
-  <a href="https://lifeart.github.io/ya-namp/">
+  <a href="https://lifeart.github.io/web-namp/">
     <img src="docs/img/screenshot.png" width="420"
-         alt="ya-namp — a Winamp-style Yandex Music player (demo mode)" />
+         alt="web-namp — a Winamp-style Yandex Music player (demo mode)" />
   </a>
 </p>
 
@@ -36,27 +36,27 @@ release (a `vX.Y.Z` tag push runs
 ### Prebuilt binary (no Node install)
 
 Download the archive for your OS from the
-[**Releases**](https://github.com/lifeart/ya-namp/releases) page, extract it, and
+[**Releases**](https://github.com/lifeart/web-namp/releases) page, extract it, and
 run the binary:
 
 ```bash
 # macOS (arm64) / Linux (x64): extract the .tar.gz, then
-./ya-namp/server/dist/ya-namp
+./web-namp/server/dist/web-namp
 # Windows (x64): extract the .zip, then
-ya-namp\server\dist\ya-namp.exe
+web-namp\server\dist\web-namp.exe
 ```
 
 Then open **http://localhost:8058** — it boots in offline **demo mode**. For your
 real Yandex catalog, pass `YANDEX_TOKEN=...` (or drop a `.env` containing
-`YANDEX_TOKEN=...` next to the binary, at `ya-namp/.env`):
+`YANDEX_TOKEN=...` next to the binary, at `web-namp/.env`):
 
 ```bash
-YANDEX_TOKEN=... ./ya-namp/server/dist/ya-namp   # Windows: set YANDEX_TOKEN=... first
+YANDEX_TOKEN=... ./web-namp/server/dist/web-namp   # Windows: set YANDEX_TOKEN=... first
 ```
 
 These are [Node SEA](https://nodejs.org/api/single-executable-applications.html)
 executables and are **per-OS** — macOS **arm64**, Linux **x64**, Windows **x64**
-(SEA can't cross-compile). Keep the whole extracted `ya-namp/` folder together:
+(SEA can't cross-compile). Keep the whole extracted `web-namp/` folder together:
 the binary serves the SPA from the `client/dist/` shipped alongside it.
 
 ### Container image (ghcr.io)
@@ -65,20 +65,20 @@ Pull the prebuilt multi-arch image (`linux/amd64` + `linux/arm64`) from GitHub
 Container Registry:
 
 ```bash
-docker pull ghcr.io/lifeart/ya-namp:latest
-docker run -d -p 8058:8058 ghcr.io/lifeart/ya-namp:latest
+docker pull ghcr.io/lifeart/web-namp:latest
+docker run -d -p 8058:8058 ghcr.io/lifeart/web-namp:latest
 # real account:  add  -e YANDEX_TOKEN=...
 # open http://localhost:8058
 ```
 
 `latest` tracks the newest release tag; specific versions are tagged `X.Y.Z` and
 `X.Y`. After the first publish the package may need to be flipped to **public**
-once (repo → **Packages** → *ya-namp* → *Package settings* → change visibility)
+once (repo → **Packages** → *web-namp* → *Package settings* → change visibility)
 before anonymous `docker pull` works.
 
 **Synology DSM (x86_64):** the simplest path avoids the registry — download
-`ya-namp-<version>-synology-amd64.tar.gz` from
-[Releases](https://github.com/lifeart/ya-namp/releases), then **Container Manager
+`web-namp-<version>-synology-amd64.tar.gz` from
+[Releases](https://github.com/lifeart/web-namp/releases), then **Container Manager
 → Image → Add → Add From File**, and run it mapping host `8058` → container
 `8058`. It's a clean single-arch amd64 archive, so no manifest-list confusion.
 (Locally, `npm run image:build` also builds an amd64 tar by default — set
@@ -180,8 +180,8 @@ the built SPA, **no `node_modules`**) listening on **port 8058**, runnable as
 root — which is how Synology DSM starts containers.
 
 ```bash
-npm run image:build     # builds ya-namp:latest + dist/ya-namp.tar (Synology import)
-podman run -d --name ya-namp -p 8058:8058 --restart unless-stopped ya-namp:latest
+npm run image:build     # builds web-namp:latest + dist/web-namp.tar (Synology import)
+podman run -d --name web-namp -p 8058:8058 --restart unless-stopped web-namp:latest
 # real account:  add  -e YANDEX_TOKEN=...   (or mount a .env at /app/.env)
 # open http://localhost:8058
 ```
@@ -194,11 +194,11 @@ setup, the `localhost/` prefix note): **[docs/deploy.md](./docs/deploy.md)**.
 
 Prebuilt binaries for macOS/Linux/Windows are attached to every
 [release](#prebuilt-binary-no-node-install) — grab one instead of building. To
-produce your own, ship ya-namp as a self-contained executable via Node 22 SEA:
+produce your own, ship web-namp as a self-contained executable via Node 22 SEA:
 
 ```bash
-npm run build:binary    # → dist/ya-namp/server/dist/ya-namp (+ client/dist alongside)
-./dist/ya-namp/server/dist/ya-namp
+npm run build:binary    # → dist/web-namp/server/dist/web-namp (+ client/dist alongside)
+./dist/web-namp/server/dist/web-namp
 ```
 
 Trade-offs, the Bun `--compile` cross-compile path, and the one small server
@@ -206,7 +206,7 @@ change for a truly single *file*: **[docs/single-binary.md](./docs/single-binary
 
 ### GitHub Pages (static, server-less demo)
 
-`npm run build:pages` produces a static `client/dist` (base `/ya-namp/`) with **no
+`npm run build:pages` produces a static `client/dist` (base `/web-namp/`) with **no
 backend** — the demo audio is synthesized in the browser and every `/api/*` call
 is served by a client-side stub, so the full demo (playback, seek, My Wave, EQ,
 playlists) works as pure static files. A push to `main`/`master` auto-deploys it
@@ -215,7 +215,7 @@ The Yandex-account features are hidden in this build (they need the local server
 
 ## Disclaimer
 
-ya-namp is an **unofficial**, personal/educational project — **not affiliated with,
+web-namp is an **unofficial**, personal/educational project — **not affiliated with,
 endorsed by, or connected to Yandex**. It talks to Yandex Music's private API using
 a token *you* supply for *your own* account; full-quality playback needs an active
 **Yandex Plus** subscription, and your use is subject to Yandex Music's Terms of
@@ -230,7 +230,7 @@ GitHub Pages demo contains only in-browser synthesized audio.
 - `npm run build:all` — build the client **and** the server bundle
 - `npm run build:pages` — build the static, server-less demo for GitHub Pages
 - `npm start` — build the client and serve it from the server (single origin)
-- `npm run image:build` — build the container image + a Synology-importable tar (`dist/ya-namp.tar`)
-- `npm run build:binary` — build a self-contained SEA executable (`dist/ya-namp/…`)
+- `npm run image:build` — build the container image + a Synology-importable tar (`dist/web-namp.tar`)
+- `npm run build:binary` — build a self-contained SEA executable (`dist/web-namp/…`)
 - `npm run typecheck` — typecheck both workspaces
 - `npm run set-token` — write a Yandex token to `.env`

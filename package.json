@@ -1,5 +1,5 @@
 {
-  "name": "ya-namp",
+  "name": "web-namp",
   "version": "0.1.1",
   "private": true,
   "description": "Yandex Music player with a classic Winamp UI",
@@ -10,7 +10,7 @@
     "client"
   ],
   "scripts": {
-    "dev": "concurrently -n server,client -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
+    "dev": "npx concurrently -n server,client -c blue,magenta \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w client",
     "build:pages": "npm run build:pages -w client",
     "build:server": "esbuild server/src/index.ts --bundle --platform=node --format=esm --target=node22 --packages=bundle --outfile=server/dist/index.mjs --banner:js='import{createRequire as __cr}from\"node:module\";const require=__cr(import.meta.url);'",

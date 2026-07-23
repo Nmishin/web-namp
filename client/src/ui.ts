@@ -19,6 +19,7 @@ import {
   searchTracks,
   sendWaveFeedback,
   setLike,
+  setMode,
   submitToken,
 } from './api';
 import { EQ_FREQS, EQ_RANGE_DB } from './player';
@@ -113,7 +114,7 @@ export function initUI(player: Player): void {
   function setStatus(text: string, kind: 'info' | 'error' = 'info'): void {
     statusEl.textContent = text;
     statusEl.className = kind === 'error' ? 'status error' : 'status';
-    if (kind === 'error') console.error(`[ya-namp] ${text}`);
+    if (kind === 'error') console.error(`[web-namp] ${text}`);
   }
 
   // --------------------------------------------------------------- marquee
@@ -294,7 +295,13 @@ export function initUI(player: Player): void {
   // ------------------------------------------------------------ mode / token
   function applyStatus(status: StatusResponse): void {
     yandexMode = status.mode === 'yandex';
-    if (yandexMode) {
+    const openvkMode = status.mode === 'openvk';
+    if (openvkMode) {
+      modeLed.className = 'led openvk';
+      modeLabel.textContent = status.account ? `openvk · ${status.account.login}` : 'openvk';
+      searchInput.placeholder = 'search all of OpenVK';
+      waveBtn.querySelector('.wave-sub')!.textContent = 'my wave · not available';
+    } else if (yandexMode) {
       modeLed.className = 'led yandex';
       modeLabel.textContent = status.account ? `yandex · ${status.account.login}` : 'yandex';
       searchInput.placeholder = 'search all of Yandex Music';
@@ -305,8 +312,39 @@ export function initUI(player: Player): void {
       searchInput.placeholder = 'search demo tracks — artist or title';
       waveBtn.querySelector('.wave-sub')!.textContent = 'my wave · demo radio';
     }
-    layoutForMode(yandexMode);
+    layoutForMode(yandexMode || openvkMode);
   }
+
+  // Click LED/mode label to cycle: demo → yandex → openvk → demo
+  modeLabel.style.cursor = 'pointer';
+  modeLabel.title = 'Click to switch mode (demo / yandex / openvk)';
+  modeLed.style.cursor = 'pointer';
+  modeLed.title = 'Click to switch mode (demo / yandex / openvk)';
+  let lastTriedMode: string | null = null;
+
+  async function cycleMode(): Promise<void> {
+    const current = (await getStatus()).mode;
+    const modes = ['demo', 'yandex', 'openvk'];
+    // If we just failed to switch to a mode, advance past it
+    const effectiveMode = lastTriedMode && lastTriedMode !== current ? lastTriedMode : current;
+    const idx = modes.indexOf(effectiveMode);
+    const next = modes[(idx + 1) % modes.length] as string;
+    lastTriedMode = next;
+    setStatus(`switching to ${next}…`, 'info');
+    try {
+      const status = await setMode(next);
+      lastTriedMode = null;
+      applyStatus(status);
+      if (next !== 'demo') {
+        void populatePlaylists();
+        void refreshLikedIds();
+      }
+    } catch (err) {
+      setStatus(`could not switch to ${next}: ${errorMessage(err)}`, 'error');
+    }
+  }
+  modeLabel.addEventListener('click', () => void cycleMode());
+  modeLed.addEventListener('click', () => void cycleMode());
 
   const plSearchHome = plSearch.parentElement; // playlist window (its normal spot)
   const plFooter = statusEl.parentElement; // reinsert anchor
@@ -320,7 +358,7 @@ export function initUI(player: Player): void {
     note.className = 'demo-note';
     note.append('DEMO — ');
     const link = document.createElement('a');
-    link.href = 'https://github.com/lifeart/ya-namp';
+    link.href = 'https://github.com/lifeart/web-namp';
     link.target = '_blank';
     link.rel = 'noopener';
     link.textContent = 'clone & run locally';
@@ -554,7 +592,7 @@ export function initUI(player: Player): void {
       likedIds.clear();
       for (const id of res.ids) likedIds.add(id);
     } catch (err) {
-      console.warn('[ya-namp] liked ids:', errorMessage(err)); // non-fatal
+      console.warn('[web-namp] liked ids:', errorMessage(err)); // non-fatal
     }
     renderLikeButton();
   }
@@ -701,7 +739,7 @@ export function initUI(player: Player): void {
 
   function pipTitle(): string {
     const t = player.currentTrack;
-    return t ? `${t.artist} - ${t.title} · ya-namp` : 'ya-namp — player';
+    return t ? `${t.artist} - ${t.title} · web-namp` : 'web-namp — player';
   }
 
   async function togglePip(): Promise<void> {
@@ -751,7 +789,7 @@ export function initUI(player: Player): void {
       try {
         pw.resizeTo(pw.outerWidth, target);
       } catch (err) {
-        console.warn('[ya-namp] pip resize unsupported:', errorMessage(err));
+        console.warn('[web-namp] pip resize unsupported:', errorMessage(err));
       }
     };
     pw.requestAnimationFrame(() => pw.requestAnimationFrame(fit));
@@ -787,7 +825,7 @@ export function initUI(player: Player): void {
         if (typeof d.seekTime === 'number') player.seekTo(d.seekTime);
       });
     } catch (err) {
-      console.warn('[ya-namp] mediaSession seekto unsupported:', errorMessage(err));
+      console.warn('[web-namp] mediaSession seekto unsupported:', errorMessage(err));
     }
   }
   function updateMediaSession(track: { title: string; artist: string; album: string | null }): void {
@@ -937,13 +975,13 @@ export function initUI(player: Player): void {
           track.bitrateKbps = r.kbps; // cache so a replay shows it instantly
           if (player.currentTrack?.id === forId) kbpsEl.textContent = String(r.kbps);
         })
-        .catch((err) => console.warn('[ya-namp] bitrate:', errorMessage(err)));
+        .catch((err) => console.warn('[web-namp] bitrate:', errorMessage(err)));
     }
-    document.title = `${track.artist} - ${track.title} · ya-namp`;
+    document.title = `${track.artist} - ${track.title} · web-namp`;
     highlightCurrent();
     renderLikeButton();
     updateMediaSession(track);
-    if (pipWindow) pipWindow.document.title = `${track.artist} - ${track.title} · ya-namp`;
+    if (pipWindow) pipWindow.document.title = `${track.artist} - ${track.title} · web-namp`;
     if (waveActive) {
       waveFeedback('trackStarted');
       void prefetchWaveIfNeeded();

@@ -1,5 +1,5 @@
 /**
- * Typed fetch wrappers for the ya-namp server contract.
+ * Typed fetch wrappers for the web-namp server contract.
  *
  * This module is the ONLY place in the client that knows the /api/* URLs.
  * All requests are same-origin relative paths; in dev the vite proxy forwards
@@ -64,6 +64,16 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
 export function getStatus(): Promise<StatusResponse> {
   if (import.meta.env.VITE_STATIC) return demo.getStatus();
   return requestJson<StatusResponse>('/api/status');
+}
+
+/** POST /api/mode { mode: 'demo'|'yandex'|'openvk' } → StatusResponse. */
+export function setMode(mode: string): Promise<StatusResponse> {
+  if (import.meta.env.VITE_STATIC) return demo.getStatus();
+  return requestJson<StatusResponse>('/api/mode', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
+  });
 }
 
 /** POST /api/token { token } → { ok: true, account } (throws with server `error` on 401). */
