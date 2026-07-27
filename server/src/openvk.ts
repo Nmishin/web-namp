@@ -38,7 +38,7 @@ function httpsGet(url: string, cookie?: string, origin?: string): Promise<HttpRe
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const headers: Record<string, string> = {
-      'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+      'User-Agent': 'web-namp/0.1.1',
       Accept: 'application/json',
       'Accept-Language': 'ru,en;q=0.9',
     };
