@@ -283,12 +283,11 @@ export async function resolveStreamUrl(
   const parsed = parseVkTrackId(trackId);
   if (!parsed) throw new UpstreamError(400, `Invalid track id: ${trackId}`);
 
-  interface GetByIdResponse { count: number; items: VkAudio[] }
-  const data = await callApi<GetByIdResponse>(instanceUrl, 'audio.getById', {
+  const data = await callApi<VkAudio[]>(instanceUrl, 'audio.getById', {
     audios: trackId,
   }, token);
 
-  const audio = data.items?.[0];
+  const audio = data[0];
   if (!audio || !audio.url) {
     throw new UpstreamError(404, `Track not available: ${trackId}`);
   }
